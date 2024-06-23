@@ -7,7 +7,13 @@
 #include "esp_zb_light.h"
 #include "string.h"
 #include "driver/gpio.h"
+
 #include "DHT22.h"
+#ifdef DHT22_H_
+#define USE_TEMPERATURE_MEAS
+#define USE_HUMIDITY_MEAS
+#define DHT_GPIO_NUM            GPIO_NUM_8
+#endif
 
 static const char *TAG = "DEMO";
 
@@ -35,6 +41,7 @@ void reportAttribute(uint8_t endpoint, uint16_t clusterID, uint16_t attributeID,
     memcpy(value_r->data_p, value, value_length);
     esp_zb_zcl_report_attr_cmd_req(&cmd);
 }
+
 void button_task(void *pvParameters)
 {
     uint8_t last_state = 0;
@@ -50,11 +57,13 @@ void button_task(void *pvParameters)
         vTaskDelay(100 / portTICK_PERIOD_MS);
     }
 }
+
+#ifdef DHT22_H_
 void dht22_task(void *pvParameters)
 {
     while (1)
     {
-        setDHTgpio(GPIO_NUM_8);
+        setDHTgpio(DHT_GPIO_NUM);
         int ret = readDHT();
         if (ret != DHT_OK)
             errorHandler(ret);
@@ -69,6 +78,7 @@ void dht22_task(void *pvParameters)
         vTaskDelay(5000 / portTICK_PERIOD_MS);
     }
 }
+#endif
 
 static void bdb_start_top_level_commissioning_cb(uint8_t mode_mask)
 {
@@ -148,7 +158,9 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct)
                      extended_pan_id[3], extended_pan_id[2], extended_pan_id[1], extended_pan_id[0],
                      esp_zb_get_pan_id(), esp_zb_get_current_channel());
             xTaskCreate(button_task, "button_task", 4096, NULL, 5, NULL);
+#ifdef DHT22_H_
             xTaskCreate(dht22_task, "dht22_task", 4096, NULL, 5, NULL);
+#endif
         }
         else
         {
@@ -212,6 +224,7 @@ static void esp_zb_task(void *pvParameters)
     esp_zb_attribute_list_t *esp_zb_binary_input_cluster = esp_zb_binary_input_cluster_create(&binary_input_cfg);
     esp_zb_binary_input_cluster_add_attr(esp_zb_binary_input_cluster, ESP_ZB_ZCL_ATTR_BINARY_INPUT_PRESENT_VALUE_ID, &present_value);
 
+#ifdef USE_TEMPERATURE_MEAS
     // ------------------------------ Cluster Temperature ------------------------------
     esp_zb_temperature_meas_cluster_cfg_t temperature_meas_cfg = {
         .measured_value = 0xFFFF,
@@ -219,7 +232,9 @@ static void esp_zb_task(void *pvParameters)
         .max_value = 100,
     };
     esp_zb_attribute_list_t *esp_zb_temperature_meas_cluster = esp_zb_temperature_meas_cluster_create(&temperature_meas_cfg);
+#endif
 
+#ifdef USE_HUMIDITY_MEAS
     // ------------------------------ Cluster Humidity ------------------------------
     esp_zb_humidity_meas_cluster_cfg_t humidity_meas_cfg = {
         .measured_value = 0xFFFF,
@@ -227,6 +242,7 @@ static void esp_zb_task(void *pvParameters)
         .max_value = 100,
     };
     esp_zb_attribute_list_t *esp_zb_humidity_meas_cluster = esp_zb_humidity_meas_cluster_create(&humidity_meas_cfg);
+#endif
 
     // ------------------------------ Create cluster list ------------------------------
     esp_zb_cluster_list_t *esp_zb_cluster_list = esp_zb_zcl_cluster_list_create();
@@ -234,8 +250,12 @@ static void esp_zb_task(void *pvParameters)
     esp_zb_cluster_list_add_identify_cluster(esp_zb_cluster_list, esp_zb_identify_cluster, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
     esp_zb_cluster_list_add_on_off_cluster(esp_zb_cluster_list, esp_zb_on_off_cluster, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
     esp_zb_cluster_list_add_binary_input_cluster(esp_zb_cluster_list, esp_zb_binary_input_cluster, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+#ifdef USE_TEMPERATURE_MEAS
     esp_zb_cluster_list_add_temperature_meas_cluster(esp_zb_cluster_list, esp_zb_temperature_meas_cluster, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+#endif
+#ifdef USE_HUMIDITY_MEAS
     esp_zb_cluster_list_add_humidity_meas_cluster(esp_zb_cluster_list, esp_zb_humidity_meas_cluster, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+#endif
 
     // ------------------------------ Create endpoint list ------------------------------
     esp_zb_ep_list_t *esp_zb_ep_list = esp_zb_ep_list_create();
