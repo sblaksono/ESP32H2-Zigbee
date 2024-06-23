@@ -8,11 +8,19 @@
 #include "string.h"
 #include "driver/gpio.h"
 
+#include "light_driver.h"
+#ifdef LIGHT_DRIVER_H_
+    #define USE_LIGHT
+#else
+    #define USE_LIGHT
+    #define LIGHT_GPIO_NUM          GPIO_NUM_0
+#endif
+
 #include "DHT22.h"
 #ifdef DHT22_H_
-#define USE_TEMPERATURE_MEAS
-#define USE_HUMIDITY_MEAS
-#define DHT_GPIO_NUM            GPIO_NUM_8
+    #define USE_TEMPERATURE_MEAS
+    #define USE_HUMIDITY_MEAS
+    #define DHT_GPIO_NUM            GPIO_NUM_22
 #endif
 
 static const char *TAG = "DEMO";
@@ -58,6 +66,22 @@ void button_task(void *pvParameters)
     }
 }
 
+#ifdef USE_LIGHT
+void identify_task(void *pvParameters)
+{
+#ifdef LIGHT_DRIVER_H_
+    light_driver_set_power(1);
+    vTaskDelay(200 / portTICK_PERIOD_MS);
+    light_driver_set_power(0);
+#else
+    gpio_set_level(LIGHT_GPIO_NUM, 1);
+    vTaskDelay(200 / portTICK_PERIOD_MS);
+    gpio_set_level(LIGHT_GPIO_NUM, 0);
+#endif
+    vTaskDelete(NULL);
+}
+#endif
+
 #ifdef DHT22_H_
 void dht22_task(void *pvParameters)
 {
@@ -94,6 +118,7 @@ static esp_err_t zb_attribute_handler(const esp_zb_zcl_set_attr_value_message_t 
                         message->info.status);
     ESP_LOGI(TAG, "Received message: endpoint(0x%x), cluster(0x%x), attribute(0x%x), data size(%d)", message->info.dst_endpoint, message->info.cluster,
              message->attribute.id, message->attribute.data.size);
+#ifdef USE_LIGHT
     if (message->info.dst_endpoint == HA_ESP_LIGHT_ENDPOINT)
     {
         if (message->info.cluster == ESP_ZB_ZCL_CLUSTER_ID_ON_OFF)
@@ -101,11 +126,23 @@ static esp_err_t zb_attribute_handler(const esp_zb_zcl_set_attr_value_message_t 
             if (message->attribute.id == ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID && message->attribute.data.type == ESP_ZB_ZCL_ATTR_TYPE_BOOL)
             {
                 light_state = message->attribute.data.value ? *(bool *)message->attribute.data.value : light_state;
-                gpio_set_level(GPIO_NUM_0, light_state);
+#ifdef LIGHT_DRIVER_H_
+                light_driver_set_power(light_state);
+#else
+                gpio_set_level(LIGHT_GPIO_NUM, light_state);
+#endif
                 ESP_LOGI(TAG, "Light sets to %s", light_state ? "On" : "Off");
             }
         }
+        else if (message->info.cluster == ESP_ZB_ZCL_CLUSTER_ID_IDENTIFY)
+        {
+            if (message->attribute.id == ESP_ZB_ZCL_ATTR_IDENTIFY_IDENTIFY_TIME_ID)
+            {
+                xTaskCreate(identify_task, "identify_task", 4096, NULL, 5, NULL);
+            }
+        }
     }
+#endif
     return ret;
 }
 
@@ -174,6 +211,7 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct)
         break;
     }
 }
+
 /* initialize Zigbee stack with Zigbee end-device config */
 
 static void esp_zb_task(void *pvParameters)
@@ -290,6 +328,12 @@ void app_main(void)
 
     gpio_set_direction(GPIO_NUM_12, GPIO_MODE_INPUT);
 
-    gpio_set_direction(GPIO_NUM_0, GPIO_MODE_OUTPUT);
-    gpio_set_level(GPIO_NUM_0, 0);
+#ifdef USE_LIGHT 
+#ifdef LIGHT_DRIVER_H_
+    light_driver_init(LIGHT_DEFAULT_OFF);
+#else
+    gpio_set_direction(LIGHT_GPIO_NUM, GPIO_MODE_OUTPUT);
+    gpio_set_level(LIGHT_GPIO_NUM, 0);
+#endif
+#endif
 }
