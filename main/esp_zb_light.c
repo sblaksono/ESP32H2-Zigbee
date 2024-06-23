@@ -227,9 +227,9 @@ static void esp_zb_task(void *pvParameters)
     uint32_t ApplicationVersion = 0x0001;
     uint32_t StackVersion = 0x0002;
     uint32_t HWVersion = 0x0002;
-    DEFINE_PSTRING(ManufacturerName, "GammaTroniques");
-    DEFINE_PSTRING(ModelIdentifier, "ESP32-H2 Demo");
-    DEFINE_PSTRING(DateCode, "20230826");
+    DEFINE_PSTRING(ManufacturerName, "Espressif");
+    DEFINE_PSTRING(ModelIdentifier, "ESP32-H2 Zigbee");
+    DEFINE_PSTRING(DateCode, "20240623");
     // You can also use the following code to define strings:  {length, 'string'}
     // uint8_t ModelIdentifier[] = {13, 'E', 'S', 'P', '3', '2', '-', 'H', '2', ' ', 'D', 'e', 'm', 'o'};
 
