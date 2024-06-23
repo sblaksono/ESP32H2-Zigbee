@@ -8,6 +8,11 @@
 #include "string.h"
 #include "driver/gpio.h"
 
+#define USE_BUTTON
+#ifdef USE_BUTTON    
+    #define BUTTON_GPIO_NUM         GPIO_NUM_12
+#endif
+
 #include "light_driver.h"
 #ifdef LIGHT_DRIVER_H_
     #define USE_LIGHT
@@ -50,12 +55,13 @@ void reportAttribute(uint8_t endpoint, uint16_t clusterID, uint16_t attributeID,
     esp_zb_zcl_report_attr_cmd_req(&cmd);
 }
 
+#ifdef USE_BUTTON
 void button_task(void *pvParameters)
 {
     uint8_t last_state = 0;
     while (1)
     {
-        uint8_t button_state = gpio_get_level(GPIO_NUM_12);
+        uint8_t button_state = gpio_get_level(BUTTON_GPIO_NUM);
         if (button_state != last_state)
         {
             ESP_LOGI(TAG, "Button changed: %d", button_state);
@@ -65,6 +71,7 @@ void button_task(void *pvParameters)
         vTaskDelay(100 / portTICK_PERIOD_MS);
     }
 }
+#endif
 
 #ifdef USE_LIGHT
 void identify_task(void *pvParameters)
@@ -112,13 +119,13 @@ static void bdb_start_top_level_commissioning_cb(uint8_t mode_mask)
 static esp_err_t zb_attribute_handler(const esp_zb_zcl_set_attr_value_message_t *message)
 {
     esp_err_t ret = ESP_OK;
-    bool light_state = 0;
     ESP_RETURN_ON_FALSE(message, ESP_FAIL, TAG, "Empty message");
     ESP_RETURN_ON_FALSE(message->info.status == ESP_ZB_ZCL_STATUS_SUCCESS, ESP_ERR_INVALID_ARG, TAG, "Received message: error status(%d)",
                         message->info.status);
     ESP_LOGI(TAG, "Received message: endpoint(0x%x), cluster(0x%x), attribute(0x%x), data size(%d)", message->info.dst_endpoint, message->info.cluster,
              message->attribute.id, message->attribute.data.size);
 #ifdef USE_LIGHT
+    bool light_state = 0;
     if (message->info.dst_endpoint == HA_ESP_LIGHT_ENDPOINT)
     {
         if (message->info.cluster == ESP_ZB_ZCL_CLUSTER_ID_ON_OFF)
@@ -194,7 +201,9 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct)
                      extended_pan_id[7], extended_pan_id[6], extended_pan_id[5], extended_pan_id[4],
                      extended_pan_id[3], extended_pan_id[2], extended_pan_id[1], extended_pan_id[0],
                      esp_zb_get_pan_id(), esp_zb_get_current_channel());
+#ifdef USE_BUTTON
             xTaskCreate(button_task, "button_task", 4096, NULL, 5, NULL);
+#endif
 #ifdef DHT22_H_
             xTaskCreate(dht22_task, "dht22_task", 4096, NULL, 5, NULL);
 #endif
@@ -241,6 +250,7 @@ static void esp_zb_task(void *pvParameters)
     esp_zb_basic_cluster_add_attr(esp_zb_basic_cluster, ESP_ZB_ZCL_ATTR_BASIC_MODEL_IDENTIFIER_ID, (void *)&ModelIdentifier);
     esp_zb_basic_cluster_add_attr(esp_zb_basic_cluster, ESP_ZB_ZCL_ATTR_BASIC_DATE_CODE_ID, (void *)&DateCode);
 
+#ifdef USE_LIGHT
     // ------------------------------ Cluster IDENTIFY ------------------------------
     esp_zb_identify_cluster_cfg_t identify_cluster_cfg = {
         .identify_time = 0,
@@ -252,7 +262,9 @@ static void esp_zb_task(void *pvParameters)
         .on_off = 0,
     };
     esp_zb_attribute_list_t *esp_zb_on_off_cluster = esp_zb_on_off_cluster_create(&on_off_cfg);
+#endif
 
+#ifdef USE_BUTTON
     // ------------------------------ Cluster BINARY INPUT ------------------------------
     esp_zb_binary_input_cluster_cfg_t binary_input_cfg = {
         .out_of_service = 0,
@@ -261,6 +273,7 @@ static void esp_zb_task(void *pvParameters)
     uint8_t present_value = 0;
     esp_zb_attribute_list_t *esp_zb_binary_input_cluster = esp_zb_binary_input_cluster_create(&binary_input_cfg);
     esp_zb_binary_input_cluster_add_attr(esp_zb_binary_input_cluster, ESP_ZB_ZCL_ATTR_BINARY_INPUT_PRESENT_VALUE_ID, &present_value);
+#endif
 
 #ifdef USE_TEMPERATURE_MEAS
     // ------------------------------ Cluster Temperature ------------------------------
@@ -285,9 +298,13 @@ static void esp_zb_task(void *pvParameters)
     // ------------------------------ Create cluster list ------------------------------
     esp_zb_cluster_list_t *esp_zb_cluster_list = esp_zb_zcl_cluster_list_create();
     esp_zb_cluster_list_add_basic_cluster(esp_zb_cluster_list, esp_zb_basic_cluster, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+#ifdef USE_LIGHT    
     esp_zb_cluster_list_add_identify_cluster(esp_zb_cluster_list, esp_zb_identify_cluster, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
     esp_zb_cluster_list_add_on_off_cluster(esp_zb_cluster_list, esp_zb_on_off_cluster, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+#endif
+#ifdef USE_BUTTON    
     esp_zb_cluster_list_add_binary_input_cluster(esp_zb_cluster_list, esp_zb_binary_input_cluster, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+#endif
 #ifdef USE_TEMPERATURE_MEAS
     esp_zb_cluster_list_add_temperature_meas_cluster(esp_zb_cluster_list, esp_zb_temperature_meas_cluster, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
 #endif
@@ -326,7 +343,9 @@ void app_main(void)
     /* hardware related and device init */
     xTaskCreate(esp_zb_task, "Zigbee_main", 4096, NULL, 5, NULL);
 
-    gpio_set_direction(GPIO_NUM_12, GPIO_MODE_INPUT);
+#ifdef USE_BUTTON
+    gpio_set_direction(BUTTON_GPIO_NUM, GPIO_MODE_INPUT);
+#endif
 
 #ifdef USE_LIGHT 
 #ifdef LIGHT_DRIVER_H_
