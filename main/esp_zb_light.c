@@ -9,23 +9,27 @@
 #include "driver/gpio.h"
 
 #define USE_BUTTON
+#define USE_LIGHT
+#define USE_LIGHT_RGB
+#define USE_DHT22
+
 #ifdef USE_BUTTON    
-    #define BUTTON_GPIO_NUM         GPIO_NUM_12
+#define BUTTON_GPIO_NUM         GPIO_NUM_12
 #endif
 
+#ifdef USE_LIGHT
+#ifdef USE_LIGHT_RGB
 #include "light_driver.h"
-#ifdef LIGHT_DRIVER_H_
-    #define USE_LIGHT
 #else
-    #define USE_LIGHT
-    #define LIGHT_GPIO_NUM          GPIO_NUM_0
+#define LIGHT_GPIO_NUM          GPIO_NUM_0
+#endif
 #endif
 
+#ifdef USE_DHT22
 #include "DHT22.h"
-#ifdef DHT22_H_
-    #define USE_TEMPERATURE_MEAS
-    #define USE_HUMIDITY_MEAS
-    #define DHT_GPIO_NUM            GPIO_NUM_22
+#define USE_TEMPERATURE_MEAS
+#define USE_HUMIDITY_MEAS
+#define DHT22_GPIO_NUM          GPIO_NUM_22
 #endif
 
 static const char *TAG = "DEMO";
@@ -76,7 +80,7 @@ void button_task(void *pvParameters)
 #ifdef USE_LIGHT
 void identify_task(void *pvParameters)
 {
-#ifdef LIGHT_DRIVER_H_
+#ifdef USE_LIGHT_RGB
     light_driver_set_power(1);
     vTaskDelay(200 / portTICK_PERIOD_MS);
     light_driver_set_power(0);
@@ -89,12 +93,12 @@ void identify_task(void *pvParameters)
 }
 #endif
 
-#ifdef DHT22_H_
+#ifdef USE_DHT22
 void dht22_task(void *pvParameters)
 {
     while (1)
     {
-        setDHTgpio(DHT_GPIO_NUM);
+        setDHTgpio(DHT22_GPIO_NUM);
         int ret = readDHT();
         if (ret != DHT_OK)
             errorHandler(ret);
@@ -133,7 +137,7 @@ static esp_err_t zb_attribute_handler(const esp_zb_zcl_set_attr_value_message_t 
             if (message->attribute.id == ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID && message->attribute.data.type == ESP_ZB_ZCL_ATTR_TYPE_BOOL)
             {
                 light_state = message->attribute.data.value ? *(bool *)message->attribute.data.value : light_state;
-#ifdef LIGHT_DRIVER_H_
+#ifdef USE_LIGHT_RGB
                 light_driver_set_power(light_state);
 #else
                 gpio_set_level(LIGHT_GPIO_NUM, light_state);
@@ -204,7 +208,7 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct)
 #ifdef USE_BUTTON
             xTaskCreate(button_task, "button_task", 4096, NULL, 5, NULL);
 #endif
-#ifdef DHT22_H_
+#ifdef USE_DHT22
             xTaskCreate(dht22_task, "dht22_task", 4096, NULL, 5, NULL);
 #endif
         }
@@ -348,7 +352,7 @@ void app_main(void)
 #endif
 
 #ifdef USE_LIGHT 
-#ifdef LIGHT_DRIVER_H_
+#ifdef USE_LIGHT_RGB
     light_driver_init(LIGHT_DEFAULT_OFF);
 #else
     gpio_set_direction(LIGHT_GPIO_NUM, GPIO_MODE_OUTPUT);
