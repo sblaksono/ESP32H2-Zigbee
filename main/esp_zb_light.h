@@ -11,9 +11,11 @@
     {                                                     \
         .esp_zb_role = ESP_ZB_DEVICE_TYPE_ED,             \
         .install_code_policy = INSTALLCODE_POLICY_ENABLE, \
-        .nwk_cfg.zed_cfg = {                              \
-            .ed_timeout = ED_AGING_TIMEOUT,               \
-            .keep_alive = ED_KEEP_ALIVE,                  \
+        .nwk_cfg = {                                      \
+            .zed_cfg = {                                  \
+                .ed_timeout = ED_AGING_TIMEOUT,           \
+                .keep_alive = ED_KEEP_ALIVE,              \
+            },                                            \
         },                                                \
     }
 

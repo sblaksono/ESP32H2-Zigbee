@@ -2,4 +2,4 @@
 # in this exact order for cmake to work correctly
 cmake_minimum_required(VERSION 3.16)
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-project(on_off_light_bulb)
+project(esp_zb_light)
